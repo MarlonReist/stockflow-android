@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -73,6 +74,7 @@ import com.example.stockflow.data.model.OrdemServicoItem
 import com.example.stockflow.data.model.OrdemServicoStatus
 import com.example.stockflow.data.model.Almoxarifado
 import com.example.stockflow.data.model.EstoqueDisponivel
+import com.example.stockflow.data.model.TecnicoAjudante
 import com.example.stockflow.ui.theme.StockFlowAccent
 import com.example.stockflow.ui.theme.StockFlowBackground
 import com.example.stockflow.ui.theme.StockFlowBackgroundEnd
@@ -225,6 +227,12 @@ fun DetalheOrdemScreen(
                             onCompletionObservationChange = {
                                 completionObservation = it
                             },
+                            helpers = uiState.ajudantes,
+                            isLoadingHelpers = uiState.isLoadingHelpers,
+                            isSavingHelper = uiState.isSavingHelper,
+                            helperError = uiState.helperError,
+                            onLoadHelpers = viewModel::carregarAjudantes,
+                            onUpdateHelper = viewModel::atualizarAjudante,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -485,6 +493,12 @@ private fun DetailContent(
     onTakePhoto: () -> Unit,
     completionObservation: String,
     onCompletionObservationChange: (String) -> Unit,
+    helpers: List<TecnicoAjudante>,
+    isLoadingHelpers: Boolean,
+    isSavingHelper: Boolean,
+    helperError: String?,
+    onLoadHelpers: () -> Unit,
+    onUpdateHelper: (Long?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -525,6 +539,18 @@ private fun DetailContent(
                     DetailValue("Endereço", it)
                 }
             }
+        }
+
+        item {
+            HelperSection(
+                ordem = ordem,
+                helpers = helpers,
+                isLoading = isLoadingHelpers,
+                isSaving = isSavingHelper,
+                errorMessage = helperError,
+                onLoad = onLoadHelpers,
+                onUpdate = onUpdateHelper
+            )
         }
 
         item {
@@ -750,6 +776,301 @@ private fun StartActionBar(
             }
         }
     }
+}
+
+@Composable
+private fun HelperSection(
+    ordem: OrdemServicoDetalhe,
+    helpers: List<TecnicoAjudante>,
+    isLoading: Boolean,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onLoad: () -> Unit,
+    onUpdate: (Long?) -> Unit
+) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    var showRemoveConfirmation by rememberSaveable { mutableStateOf(false) }
+    val canEdit = ordem.status == OrdemServicoStatus.AGENDADA ||
+        ordem.status == OrdemServicoStatus.EM_ATENDIMENTO
+
+    DetailSection(title = "Técnico ajudante") {
+        Text(
+            text = "Opcional",
+            modifier = Modifier
+                .background(
+                    StockFlowAccent.copy(alpha = 0.14f),
+                    RoundedCornerShape(50)
+                )
+                .padding(horizontal = 9.dp, vertical = 4.dp),
+            color = StockFlowAccent,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        errorMessage?.let {
+            Text(
+                text = it,
+                modifier = Modifier.padding(bottom = 10.dp),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        if (ordem.ajudanteId != null && ordem.ajudanteNome != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(StockFlowInput, RoundedCornerShape(10.dp))
+                    .border(
+                        1.dp,
+                        StockFlowPrimary.copy(alpha = 0.35f),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = ordem.ajudanteNome,
+                        color = StockFlowTextPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "ID ${ordem.ajudanteId}",
+                        color = StockFlowTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = StockFlowPrimary
+                    )
+                } else if (canEdit) {
+                    IconButton(
+                        onClick = {
+                            onLoad()
+                            showPicker = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = "Trocar ajudante",
+                            tint = StockFlowPrimary
+                        )
+                    }
+                    IconButton(onClick = { showRemoveConfirmation = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Remover ajudante",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        } else if (canEdit) {
+            OutlinedButton(
+                onClick = {
+                    onLoad()
+                    showPicker = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PersonAdd,
+                    contentDescription = null
+                )
+                Text(
+                    text = "Adicionar ajudante",
+                    modifier = Modifier.padding(start = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            EmptySectionText("Nenhum ajudante informado.")
+        }
+    }
+
+    if (showPicker) {
+        HelperPickerDialog(
+            helpers = helpers,
+            selectedHelperId = ordem.ajudanteId,
+            isLoading = isLoading,
+            errorMessage = errorMessage,
+            onDismiss = { showPicker = false },
+            onSelect = { helper ->
+                showPicker = false
+                onUpdate(helper.colaboradorId)
+            }
+        )
+    }
+
+    if (showRemoveConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirmation = false },
+            title = { Text("Remover ajudante?") },
+            text = { Text("A OS ficará sem técnico ajudante vinculado.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRemoveConfirmation = false
+                        onUpdate(null)
+                    }
+                ) {
+                    Text("Remover")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            },
+            containerColor = StockFlowCard,
+            titleContentColor = StockFlowTextPrimary,
+            textContentColor = StockFlowTextSecondary
+        )
+    }
+}
+
+@Composable
+private fun HelperPickerDialog(
+    helpers: List<TecnicoAjudante>,
+    selectedHelperId: Long?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSelect: (TecnicoAjudante) -> Unit
+) {
+    var searchText by rememberSaveable { mutableStateOf("") }
+    val search = searchText.trim().lowercase()
+    val filteredHelpers = helpers.filter { helper ->
+        search.isEmpty() ||
+            helper.colaboradorNome.lowercase().contains(search) ||
+            helper.colaboradorId.toString().contains(search) ||
+            helper.login.lowercase().contains(search)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("Selecionar ajudante")
+                Text(
+                    text = "Campo opcional",
+                    color = StockFlowTextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Normal
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Buscar por nome, login ou ID") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Search, contentDescription = null)
+                    },
+                    singleLine = true
+                )
+
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = StockFlowPrimary)
+                        }
+                    }
+
+                    errorMessage != null -> {
+                        Text(
+                            text = errorMessage,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    filteredHelpers.isEmpty() -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Nenhum técnico encontrado.",
+                                color = StockFlowTextSecondary
+                            )
+                        }
+                    }
+
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filteredHelpers, key = { it.colaboradorId }) { helper ->
+                                val selected = helper.colaboradorId == selectedHelperId
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelect(helper) },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selected) {
+                                            StockFlowPrimary.copy(alpha = 0.18f)
+                                        } else {
+                                            StockFlowInput
+                                        }
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (selected) StockFlowPrimary
+                                        else StockFlowTextSecondary.copy(alpha = 0.18f)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = helper.colaboradorNome,
+                                            color = StockFlowTextPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = "ID ${helper.colaboradorId} • ${helper.login}",
+                                            color = StockFlowTextSecondary,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Fechar") }
+        },
+        containerColor = StockFlowCard,
+        titleContentColor = StockFlowTextPrimary,
+        textContentColor = StockFlowTextPrimary
+    )
 }
 
 @Composable

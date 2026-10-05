@@ -11,6 +11,8 @@ data class OrdemServicoDetalhe(
     val clienteEndereco: String?,
     val tipoOrdemServicoId: Long?,
     val tipoOrdemServicoNome: String?,
+    val ajudanteId: Long?,
+    val ajudanteNome: String?,
     val dataAgendada: String?,
     val inicioAtendimento: String?,
     val fimAtendimento: String?,
@@ -42,6 +44,8 @@ data class OrdemServicoAnexo(
 data class OrdemServicoAtualizacao(
     val id: Long,
     val status: OrdemServicoStatus,
+    val ajudanteId: Long?,
+    val ajudanteNome: String?,
     val inicioAtendimento: String?,
     val fimAtendimento: String?
 )

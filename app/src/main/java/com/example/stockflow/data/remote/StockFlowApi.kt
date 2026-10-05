@@ -4,6 +4,8 @@ import com.example.stockflow.data.model.AdicionarMaterialRequest
 import com.example.stockflow.data.model.Almoxarifado
 import com.example.stockflow.data.model.EstoqueDisponivel
 import com.example.stockflow.data.model.ConclusaoAtendimentoRequest
+import com.example.stockflow.data.model.AtualizarAjudanteRequest
+import com.example.stockflow.data.model.TecnicoAjudante
 import com.example.stockflow.data.model.LoginRequest
 import com.example.stockflow.data.model.LoginResponse
 import com.example.stockflow.data.model.OrdemServicoAtualizacao
@@ -31,6 +33,9 @@ interface StockFlowApi {
     @GET("tecnico/minhas-os")
     suspend fun listarMinhasOrdens(): List<OrdemServicoResumo>
 
+    @GET("tecnico/ajudantes")
+    suspend fun listarAjudantes(): List<TecnicoAjudante>
+
     @GET("tecnico/os/{id}")
     suspend fun buscarOrdemPorId(
         @Path("id") id: Long
@@ -45,6 +50,12 @@ interface StockFlowApi {
     suspend fun concluirAtendimento(
         @Path("id") id: Long,
         @Body request: ConclusaoAtendimentoRequest
+    ): OrdemServicoAtualizacao
+
+    @PATCH("tecnico/os/{id}/ajudante")
+    suspend fun atualizarAjudante(
+        @Path("id") id: Long,
+        @Body request: AtualizarAjudanteRequest
     ): OrdemServicoAtualizacao
 
     @GET("almoxarifados")

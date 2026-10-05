@@ -7,6 +7,8 @@ data class OrdemServicoResumo(
     val clienteTelefone: String?,
     val clienteEndereco: String?,
     val tipoOrdemServicoNome: String?,
+    val ajudanteId: Long?,
+    val ajudanteNome: String?,
     val dataAgendada: String?,
     val inicioAtendimento: String?
 )

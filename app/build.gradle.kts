@@ -35,6 +35,18 @@ android {
     }
 }
 
+val adbReverse = tasks.register<Exec>("adbReverse") {
+    group = "stockflow"
+    description = "Conecta a porta 8080 do emulador ao backend local"
+    executable(androidComponents.sdkComponents.adb.get().asFile)
+    args("reverse", "tcp:8080", "tcp:8080")
+    isIgnoreExitValue = true
+}
+
+tasks.matching { it.name == "preDebugBuild" }.configureEach {
+    dependsOn(adbReverse)
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

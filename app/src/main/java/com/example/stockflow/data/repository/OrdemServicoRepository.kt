@@ -5,6 +5,8 @@ import com.example.stockflow.data.model.AdicionarMaterialRequest
 import com.example.stockflow.data.model.Almoxarifado
 import com.example.stockflow.data.model.EstoqueDisponivel
 import com.example.stockflow.data.model.ConclusaoAtendimentoRequest
+import com.example.stockflow.data.model.AtualizarAjudanteRequest
+import com.example.stockflow.data.model.TecnicoAjudante
 import com.example.stockflow.data.model.OrdemServicoAtualizacao
 import com.example.stockflow.data.model.OrdemServicoAnexo
 import com.example.stockflow.data.model.OrdemServicoDetalhe
@@ -23,6 +25,10 @@ class OrdemServicoRepository(
         return api.listarMinhasOrdens()
     }
 
+    suspend fun listarAjudantes(): List<TecnicoAjudante> {
+        return api.listarAjudantes()
+    }
+
     suspend fun buscarOrdemPorId(id: Long): OrdemServicoDetalhe {
         return api.buscarOrdemPorId(id)
     }
@@ -39,6 +45,13 @@ class OrdemServicoRepository(
             id,
             ConclusaoAtendimentoRequest(observacaoConclusao)
         )
+    }
+
+    suspend fun atualizarAjudante(
+        id: Long,
+        ajudanteId: Long?
+    ): OrdemServicoAtualizacao {
+        return api.atualizarAjudante(id, AtualizarAjudanteRequest(ajudanteId))
     }
 
     suspend fun listarAlmoxarifados(): List<Almoxarifado> {

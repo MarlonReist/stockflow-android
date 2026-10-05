@@ -456,6 +456,91 @@ class DetalheOrdemViewModel(
         }
     }
 
+    fun carregarAjudantes() {
+        if (_uiState.value.isLoadingHelpers || _uiState.value.ajudantes.isNotEmpty()) return
+
+        _uiState.value = _uiState.value.copy(
+            isLoadingHelpers = true,
+            helperError = null
+        )
+
+        viewModelScope.launch {
+            try {
+                val ajudantes = repository.listarAjudantes()
+
+                _uiState.value = _uiState.value.copy(
+                    ajudantes = ajudantes.sortedBy { it.colaboradorNome.lowercase() },
+                    isLoadingHelpers = false
+                )
+            } catch (exception: HttpException) {
+                Log.e("StockFlowDetalhe", "Erro HTTP ao carregar ajudantes", exception)
+
+                if (exception.code() == 401 || exception.code() == 403) {
+                    clearSession()
+                } else {
+                    showHelperError("Erro ao carregar técnicos: HTTP ${exception.code()}.")
+                }
+            } catch (exception: IOException) {
+                Log.e("StockFlowDetalhe", "Falha de conexão ao carregar ajudantes", exception)
+                showHelperError("Não foi possível carregar os técnicos.")
+            } catch (exception: Exception) {
+                Log.e("StockFlowDetalhe", "Erro inesperado ao carregar ajudantes", exception)
+                showHelperError("Ocorreu um erro ao carregar os técnicos.")
+            }
+        }
+    }
+
+    fun atualizarAjudante(ajudanteId: Long?) {
+        val ordemAtual = _uiState.value.ordem ?: return
+
+        if (ordemAtual.status != OrdemServicoStatus.AGENDADA &&
+            ordemAtual.status != OrdemServicoStatus.EM_ATENDIMENTO
+        ) {
+            showHelperError("O ajudante só pode ser alterado antes da conferência.")
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(
+            isSavingHelper = true,
+            helperError = null
+        )
+
+        viewModelScope.launch {
+            try {
+                val atualizacao = repository.atualizarAjudante(ordemId, ajudanteId)
+
+                _uiState.value = _uiState.value.copy(
+                    ordem = ordemAtual.copy(
+                        ajudanteId = atualizacao.ajudanteId,
+                        ajudanteNome = atualizacao.ajudanteNome
+                    ),
+                    isSavingHelper = false,
+                    wasUpdated = true
+                )
+            } catch (exception: HttpException) {
+                Log.e("StockFlowDetalhe", "Erro HTTP ao atualizar ajudante", exception)
+
+                if (exception.code() == 401 || exception.code() == 403) {
+                    clearSession()
+                } else {
+                    showHelperError(
+                        if (exception.code() == 400) {
+                            "Não foi possível selecionar este técnico como ajudante."
+                        } else {
+                            "Erro do servidor: HTTP ${exception.code()}."
+                        }
+                    )
+                }
+            } catch (exception: IOException) {
+                Log.e("StockFlowDetalhe", "Falha de conexão ao atualizar ajudante", exception)
+                showHelperError("Não foi possível conectar ao servidor.")
+            } catch (exception: Exception) {
+                Log.e("StockFlowDetalhe", "Erro inesperado ao atualizar ajudante", exception)
+                showHelperError("Ocorreu um erro ao atualizar o ajudante.")
+            }
+        }
+    }
+
     private fun showError(message: String) {
         _uiState.value = _uiState.value.copy(
             isLoading = false,
@@ -493,6 +578,14 @@ class DetalheOrdemViewModel(
         )
     }
 
+    private fun showHelperError(message: String) {
+        _uiState.value = _uiState.value.copy(
+            isLoadingHelpers = false,
+            isSavingHelper = false,
+            helperError = message
+        )
+    }
+
     private suspend fun clearSession() {
         tokenManager.clearToken()
 
@@ -504,6 +597,8 @@ class DetalheOrdemViewModel(
             removingMaterialId = null,
             isUploadingAttachment = false,
             isCompleting = false,
+            isLoadingHelpers = false,
+            isSavingHelper = false,
             requiresLogin = true
         )
     }
