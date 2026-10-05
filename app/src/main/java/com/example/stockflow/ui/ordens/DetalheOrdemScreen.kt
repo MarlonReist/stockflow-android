@@ -1,5 +1,8 @@
 package com.example.stockflow.ui.ordens
 
+import android.content.Intent
+import android.net.Uri
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Directions
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
@@ -536,7 +540,7 @@ private fun DetailContent(
                     DetailValue("Telefone", it)
                 }
                 ordem.clienteEndereco?.takeIf { it.isNotBlank() }?.let {
-                    DetailValue("Endereço", it)
+                    AddressValue(it)
                 }
             }
         }
@@ -1629,6 +1633,62 @@ private fun DetailValue(
             color = StockFlowTextPrimary,
             style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
+
+@Composable
+private fun AddressValue(address: String) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier.padding(vertical = 5.dp)
+    ) {
+        Text(
+            text = "Endereço",
+            color = StockFlowTextSecondary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Text(
+            text = address,
+            color = StockFlowTextPrimary,
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        TextButton(
+            onClick = {
+                val encodedAddress = Uri.encode(address)
+                val mapsIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("geo:0,0?q=$encodedAddress")
+                ).setPackage("com.google.android.apps.maps")
+
+                runCatching {
+                    context.startActivity(mapsIntent)
+                }.onFailure {
+                    val browserIntent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse(
+                            "https://www.google.com/maps/search/?api=1&query=$encodedAddress"
+                        )
+                    )
+                    context.startActivity(browserIntent)
+                }
+            },
+            modifier = Modifier.padding(top = 2.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Directions,
+                contentDescription = null,
+                modifier = Modifier.size(19.dp)
+            )
+            Text(
+                text = "Abrir no Maps",
+                modifier = Modifier.padding(start = 7.dp),
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
