@@ -24,6 +24,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.stockflow.ui.login.LoginScreen
+import com.example.stockflow.ui.historico.HistoricoScreen
+import com.example.stockflow.ui.historico.HistoricoDetalheScreen
 import com.example.stockflow.ui.ordens.DetalheOrdemScreen
 import com.example.stockflow.ui.ordens.OrdensScreen
 import com.example.stockflow.ui.theme.StockFlowAccent
@@ -36,9 +38,12 @@ import com.example.stockflow.ui.theme.StockFlowTextPrimary
 private object Routes {
     const val LOGIN = "login"
     const val ORDENS = "ordens"
+    const val HISTORICO = "historico"
+    const val HISTORICO_DETALHE = "historico/{ordemId}"
     const val DETALHE_ORDEM = "ordens/{ordemId}"
 
     fun detalheOrdem(ordemId: Long): String = "ordens/$ordemId"
+    fun detalheHistorico(ordemId: Long): String = "historico/$ordemId"
 }
 
 @Composable
@@ -81,6 +86,9 @@ fun StockFlowNavigation(
                 .collectAsState()
 
             OrdensScreen(
+                onHistoricoClick = {
+                    navController.navigate(Routes.HISTORICO) { launchSingleTop = true }
+                },
                 onOrdemClick = { ordemId ->
                     navController.navigate(Routes.detalheOrdem(ordemId))
                 },
@@ -94,6 +102,36 @@ fun StockFlowNavigation(
                 refreshRequested = refreshRequested,
                 onRefreshHandled = {
                     backStackEntry.savedStateHandle["refreshOrdens"] = false
+                }
+            )
+        }
+
+        composable(Routes.HISTORICO) {
+            HistoricoScreen(
+                onOrdemClick = { ordemId ->
+                    navController.navigate(Routes.detalheHistorico(ordemId)) { launchSingleTop = true }
+                },
+                onBack = { navController.popBackStack() },
+                onSessionExpired = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.ORDENS) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Routes.HISTORICO_DETALHE,
+            arguments = listOf(navArgument("ordemId") { type = NavType.LongType })
+        ) {
+            HistoricoDetalheScreen(
+                onBack = { navController.popBackStack() },
+                onSessionExpired = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.ORDENS) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }

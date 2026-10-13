@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -61,6 +62,7 @@ import java.time.format.DateTimeFormatter
 fun OrdensScreen(
     onOrdemClick: (Long) -> Unit,
     onSessionExpired: () -> Unit,
+    onHistoricoClick: () -> Unit,
     refreshRequested: Boolean = false,
     onRefreshHandled: () -> Unit = {},
     viewModel: OrdensViewModel = viewModel()
@@ -142,6 +144,15 @@ fun OrdensScreen(
         )
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedButton(
+            onClick = onHistoricoClick,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Histórico de OS")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Box(
             modifier = Modifier
@@ -426,7 +437,7 @@ private fun EmptyContent() {
 private val apiDateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
 private val displayDateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm")
 
-private fun String?.formatDateTime(): String? {
+internal fun String?.formatDateTime(): String? {
     if (this.isNullOrBlank()) {
         return null
     }

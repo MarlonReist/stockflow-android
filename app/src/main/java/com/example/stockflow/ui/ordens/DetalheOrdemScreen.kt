@@ -1580,7 +1580,7 @@ private fun ProductPickerDialog(
 }
 
 @Composable
-private fun DetailSection(
+internal fun DetailSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -1614,7 +1614,7 @@ private fun DetailSection(
 }
 
 @Composable
-private fun DetailValue(
+internal fun DetailValue(
     label: String,
     value: String
 ) {
@@ -1758,7 +1758,7 @@ private fun MaterialItem(
 }
 
 @Composable
-private fun AttachmentItem(anexo: OrdemServicoAnexo) {
+internal fun AttachmentItem(anexo: OrdemServicoAnexo) {
     Column {
         Text(
             text = anexo.nomeOriginal,
@@ -1784,7 +1784,7 @@ private fun AttachmentItem(anexo: OrdemServicoAnexo) {
 }
 
 @Composable
-private fun EmptySectionText(message: String) {
+internal fun EmptySectionText(message: String) {
     Text(
         text = message,
         color = StockFlowTextSecondary,
@@ -1793,7 +1793,7 @@ private fun EmptySectionText(message: String) {
 }
 
 @Composable
-private fun SectionDivider() {
+internal fun SectionDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 12.dp),
         color = StockFlowInput
@@ -1838,7 +1838,7 @@ private fun String?.formatApiDateTime(): String? {
     }.getOrElse { this }
 }
 
-private fun String.formatApiDate(): String {
+internal fun String.formatApiDate(): String {
     return runCatching {
         LocalDate.parse(this, apiDateFormatter)
             .format(displayDateFormatter)

@@ -29,7 +29,8 @@ data class OrdemServicoItem(
     val quantidade: Int,
     val valorUnitario: Double?,
     val valorTotal: Double?,
-    val almoxarifadoId: Long
+    val almoxarifadoId: Long,
+    val almoxarifadoNome: String? = null
 )
 
 data class OrdemServicoAnexo(

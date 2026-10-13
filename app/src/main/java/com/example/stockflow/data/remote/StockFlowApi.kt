@@ -13,6 +13,9 @@ import com.example.stockflow.data.model.OrdemServicoDetalhe
 import com.example.stockflow.data.model.OrdemServicoAnexo
 import com.example.stockflow.data.model.OrdemServicoItem
 import com.example.stockflow.data.model.OrdemServicoResumo
+import com.example.stockflow.data.model.HistoricoOrdemServicoDetalhe
+import com.example.stockflow.data.model.HistoricoOrdemServicoPagina
+import com.example.stockflow.data.model.TipoOrdemServico
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -22,6 +25,9 @@ import retrofit2.http.POST
 import retrofit2.http.Multipart
 import retrofit2.http.Part
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody
+import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface StockFlowApi {
 
@@ -32,6 +38,30 @@ interface StockFlowApi {
 
     @GET("tecnico/minhas-os")
     suspend fun listarMinhasOrdens(): List<OrdemServicoResumo>
+
+    @GET("tipos-os/ativos")
+    suspend fun listarTiposOrdemServicoAtivos(): List<TipoOrdemServico>
+
+    @GET("tecnico/historico")
+    suspend fun listarHistorico(
+        @Query("osId") osId: Long?,
+        @Query("dataInicialConclusao") dataInicialConclusao: String?,
+        @Query("dataFinalConclusao") dataFinalConclusao: String?,
+        @Query("tipoOrdemServicoId") tipoOrdemServicoId: Long?,
+        @Query("page") page: Int,
+        @Query("size") size: Int
+    ): HistoricoOrdemServicoPagina
+
+    @GET("tecnico/historico/{id}")
+    suspend fun buscarHistoricoPorId(
+        @Path("id") id: Long
+    ): HistoricoOrdemServicoDetalhe
+
+    @Streaming
+    @GET("tecnico/historico/anexos/{anexoId}/arquivo")
+    suspend fun baixarAnexoHistorico(
+        @Path("anexoId") anexoId: Long
+    ): ResponseBody
 
     @GET("tecnico/ajudantes")
     suspend fun listarAjudantes(): List<TecnicoAjudante>
