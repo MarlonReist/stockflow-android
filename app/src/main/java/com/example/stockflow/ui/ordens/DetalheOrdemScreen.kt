@@ -111,6 +111,7 @@ fun DetalheOrdemScreen(
     var attachmentName by rememberSaveable { mutableStateOf("") }
     var completionObservation by rememberSaveable { mutableStateOf("") }
     var showCompletionConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showRoteadorDialog by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
     fun suggestAttachmentName(uri: android.net.Uri): String {
@@ -231,6 +232,20 @@ fun DetalheOrdemScreen(
                             onCompletionObservationChange = {
                                 completionObservation = it
                             },
+                            isCompleting = uiState.isCompleting,
+                            roteadorContent = {
+                                RoteadorResumoSection(
+                                    ordem = uiState.ordem!!,
+                                    state = uiState.roteador,
+                                    isRefreshing = uiState.isRefreshingAfterCompletion,
+                                    refreshError = uiState.completionRefreshError,
+                                    onRetryRefresh = viewModel::atualizarDetalheAposConclusao,
+                                    onEdit = {
+                                        viewModel.alterarAtualizacaoRoteador(true)
+                                        showRoteadorDialog = true
+                                    }
+                                )
+                            },
                             helpers = uiState.ajudantes,
                             isLoadingHelpers = uiState.isLoadingHelpers,
                             isSavingHelper = uiState.isSavingHelper,
@@ -259,12 +274,37 @@ fun DetalheOrdemScreen(
                                     showMaterialDialog = true
                                     viewModel.carregarMateriais()
                                 },
-                                onComplete = { showCompletionConfirmation = true }
+                                onComplete = {
+                                    if (uiState.roteador.erroValidacao(uiState.ordem!!) != null) {
+                                        viewModel.alterarAtualizacaoRoteador(true)
+                                        showRoteadorDialog = true
+                                    } else showCompletionConfirmation = true
+                                }
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    if (showRoteadorDialog) {
+        uiState.ordem?.let { ordem ->
+            RoteadorEditDialog(
+                ordem = ordem,
+                state = uiState.roteador,
+                isCompleting = uiState.isCompleting,
+                onDismiss = {
+                    viewModel.cancelarEdicaoRoteador()
+                    showRoteadorDialog = false
+                },
+                onModelChange = { viewModel.alterarModeloRoteador(it) },
+                onSuggestionSelected = { viewModel.alterarModeloRoteador(it, pesquisar = false) },
+                onPropertyChange = viewModel::alterarPropriedadeRoteador,
+                onConfirm = {
+                    showRoteadorDialog = false
+                }
+            )
         }
     }
 
@@ -419,9 +459,14 @@ fun DetalheOrdemScreen(
             },
             title = { Text("Concluir atendimento?") },
             text = {
-                Text(
-                    "A OS será enviada para Aguardando conferência. Depois disso, materiais e anexos não poderão mais ser alterados pelo técnico."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("A OS será enviada para Aguardando conferência. Depois disso, materiais e anexos não poderão mais ser alterados pelo técnico.")
+                    uiState.ordem?.let { ordem ->
+                        if (uiState.roteador.deveEnviar(ordem)) {
+                            Text("Roteador: ${uiState.roteador.modelo.trim()}\nPropriedade: ${uiState.roteador.propriedade?.label().orEmpty()}")
+                        } else Text("O roteador atual será mantido.")
+                    }
+                }
             },
             confirmButton = {
                 Button(
@@ -497,6 +542,8 @@ private fun DetailContent(
     onTakePhoto: () -> Unit,
     completionObservation: String,
     onCompletionObservationChange: (String) -> Unit,
+    isCompleting: Boolean,
+    roteadorContent: @Composable () -> Unit,
     helpers: List<TecnicoAjudante>,
     isLoadingHelpers: Boolean,
     isSavingHelper: Boolean,
@@ -688,6 +735,8 @@ private fun DetailContent(
             }
         }
 
+        item { roteadorContent() }
+
         if (ordem.status == OrdemServicoStatus.EM_ATENDIMENTO) {
             item {
                 DetailSection(title = "Conclusão do atendimento") {
@@ -701,6 +750,7 @@ private fun DetailContent(
 
                     OutlinedTextField(
                         value = completionObservation,
+                        enabled = !isCompleting,
                         onValueChange = onCompletionObservationChange,
                         modifier = Modifier
                             .fillMaxWidth()

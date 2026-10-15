@@ -5,6 +5,8 @@ import com.example.stockflow.data.model.AdicionarMaterialRequest
 import com.example.stockflow.data.model.Almoxarifado
 import com.example.stockflow.data.model.EstoqueDisponivel
 import com.example.stockflow.data.model.ConclusaoAtendimentoRequest
+import com.example.stockflow.data.model.ModeloRoteadorSugestao
+import com.example.stockflow.data.model.RoteadorPrincipalRequest
 import com.example.stockflow.data.model.AtualizarAjudanteRequest
 import com.example.stockflow.data.model.TecnicoAjudante
 import com.example.stockflow.data.model.OrdemServicoAtualizacao
@@ -87,12 +89,27 @@ class OrdemServicoRepository(
 
     suspend fun concluirAtendimento(
         id: Long,
-        observacaoConclusao: String
+        observacaoConclusao: String,
+        roteadorPrincipal: RoteadorPrincipalRequest? = null
     ): OrdemServicoAtualizacao {
+        roteadorPrincipal?.let {
+            require(it.modelo.isNotBlank()) { "Informe o modelo do roteador." }
+            require(it.modelo.length <= 150) { "O modelo do roteador deve ter no máximo 150 caracteres." }
+        }
         return api.concluirAtendimento(
             id,
-            ConclusaoAtendimentoRequest(observacaoConclusao)
+            ConclusaoAtendimentoRequest(observacaoConclusao, roteadorPrincipal)
         )
+    }
+
+    suspend fun buscarSugestoesRoteador(
+        consulta: String,
+        limite: Int = 10
+    ): List<ModeloRoteadorSugestao> {
+        val texto = consulta.trim()
+        if (texto.isBlank()) return emptyList()
+        require(limite in 1..20) { "O limite de sugestões deve estar entre 1 e 20." }
+        return api.buscarSugestoesRoteador(texto, limite)
     }
 
     suspend fun atualizarAjudante(

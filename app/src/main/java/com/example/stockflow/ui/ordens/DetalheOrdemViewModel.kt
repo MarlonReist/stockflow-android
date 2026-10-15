@@ -9,9 +9,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.stockflow.data.local.TokenManager
 import com.example.stockflow.data.model.OrdemServicoStatus
+import com.example.stockflow.data.model.PropriedadeRoteador
+import com.google.gson.JsonParser
 import com.example.stockflow.data.repository.OrdemServicoRepository
 import java.io.IOException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +39,8 @@ class DetalheOrdemViewModel(
 
     private val _uiState = MutableStateFlow(DetalheOrdemUiState())
     val uiState: StateFlow<DetalheOrdemUiState> = _uiState.asStateFlow()
+    private var sugestoesJob: Job? = null
+    private var roteadorInicializado = false
 
     init {
         carregarDetalhe()
@@ -51,8 +59,13 @@ class DetalheOrdemViewModel(
 
                 _uiState.value = _uiState.value.copy(
                     ordem = ordem,
-                    isLoading = false
+                    isLoading = false,
+                    roteador = if (roteadorInicializado) _uiState.value.roteador else RoteadorConclusaoUiState(
+                        modelo = ordem.modeloRoteadorPrincipal.orEmpty(),
+                        propriedade = ordem.propriedadeRoteadorPrincipal
+                    )
                 )
+                roteadorInicializado = true
             } catch (exception: HttpException) {
                 Log.e(
                     "StockFlowDetalhe",
@@ -193,6 +206,7 @@ class DetalheOrdemViewModel(
     }
 
     fun adicionarMaterial(produtoId: Long, almoxarifadoId: Long, quantidade: Int) {
+        if (_uiState.value.isCompleting) return
         val ordemAtual = _uiState.value.ordem ?: return
 
         if (ordemAtual.status != OrdemServicoStatus.EM_ATENDIMENTO) {
@@ -260,6 +274,7 @@ class DetalheOrdemViewModel(
     }
 
     fun removerMaterial(itemId: Long) {
+        if (_uiState.value.isCompleting) return
         val ordemAtual = _uiState.value.ordem ?: return
 
         if (ordemAtual.status != OrdemServicoStatus.EM_ATENDIMENTO) {
@@ -316,6 +331,7 @@ class DetalheOrdemViewModel(
     }
 
     fun adicionarAnexo(uri: Uri, nomeInformado: String) {
+        if (_uiState.value.isCompleting) return
         val ordemAtual = _uiState.value.ordem ?: return
 
         if (ordemAtual.status != OrdemServicoStatus.EM_ATENDIMENTO) {
@@ -397,6 +413,12 @@ class DetalheOrdemViewModel(
     }
 
     fun concluirAtendimento(observacao: String) {
+        if (_uiState.value.isCompleting || _uiState.value.requiresLogin) return
+        val state = _uiState.value
+        if (state.isAddingMaterial || state.removingMaterialId != null || state.isUploadingAttachment || state.isSavingHelper) {
+            showCompletionError("Aguarde o término da operação em andamento antes de concluir.")
+            return
+        }
         val ordemAtual = _uiState.value.ordem ?: return
         val observacaoFormatada = observacao.trim()
 
@@ -410,16 +432,25 @@ class DetalheOrdemViewModel(
             return
         }
 
+        _uiState.value.roteador.erroValidacao(ordemAtual)?.let {
+            showCompletionError(it)
+            return
+        }
+        val roteadorRequest = _uiState.value.roteador.request(ordemAtual)
+        sugestoesJob?.cancel()
+
         _uiState.value = _uiState.value.copy(
             isCompleting = true,
-            completionError = null
+            completionError = null,
+            roteador = _uiState.value.roteador.copy(isSearching = false, sugestoes = emptyList())
         )
 
         viewModelScope.launch {
             try {
                 val atualizacao = repository.concluirAtendimento(
                     id = ordemId,
-                    observacaoConclusao = observacaoFormatada
+                    observacaoConclusao = observacaoFormatada,
+                    roteadorPrincipal = roteadorRequest
                 )
 
                 _uiState.value = _uiState.value.copy(
@@ -432,19 +463,24 @@ class DetalheOrdemViewModel(
                     isCompleting = false,
                     wasUpdated = true
                 )
+                // A conclusão já foi confirmada. Uma falha no GET não deve permitir reenviar o PATCH.
+                atualizarDetalheAposConclusao()
+            } catch (exception: CancellationException) {
+                throw exception
             } catch (exception: HttpException) {
-                Log.e("StockFlowDetalhe", "Erro HTTP ao concluir atendimento", exception)
-
-                if (exception.code() == 401 || exception.code() == 403) {
-                    clearSession()
-                } else {
-                    showCompletionError(
-                        if (exception.code() == 400) {
-                            "Não foi possível concluir. Confira a observação e o status da OS."
-                        } else {
-                            "Erro do servidor: HTTP ${exception.code()}."
-                        }
-                    )
+                when (exception.code()) {
+                    401 -> clearSession()
+                    403 -> showCompletionError("Você não tem permissão para concluir esta OS.")
+                    404 -> showCompletionError("Ordem de serviço não encontrada.")
+                    400 -> {
+                        val mensagem = runCatching {
+                            exception.response()?.errorBody()?.use {
+                                JsonParser.parseString(it.string()).asJsonObject.get("message")?.asString
+                            }
+                        }.getOrNull()?.takeIf { it.isNotBlank() }
+                        showCompletionError(mensagem ?: "Confira a observação e os dados do roteador.")
+                    }
+                    else -> showCompletionError("Não foi possível concluir o atendimento. Tente novamente.")
                 }
             } catch (exception: IOException) {
                 Log.e("StockFlowDetalhe", "Falha de conexão ao concluir atendimento", exception)
@@ -452,6 +488,99 @@ class DetalheOrdemViewModel(
             } catch (exception: Exception) {
                 Log.e("StockFlowDetalhe", "Erro inesperado ao concluir atendimento", exception)
                 showCompletionError("Ocorreu um erro ao concluir o atendimento.")
+            }
+        }
+    }
+
+    fun alterarAtualizacaoRoteador(atualizar: Boolean) {
+        if (_uiState.value.isCompleting) return
+        sugestoesJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            roteador = _uiState.value.roteador.copy(
+                atualizar = atualizar, sugestoes = emptyList(), isSearching = false, searchError = null
+            ),
+            completionError = null
+        )
+    }
+
+    fun cancelarEdicaoRoteador() {
+        val ordem = _uiState.value.ordem ?: return
+        sugestoesJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            roteador = if (ordem.possuiRoteadorPrincipal()) {
+                RoteadorConclusaoUiState(
+                    modelo = ordem.modeloRoteadorPrincipal.orEmpty(),
+                    propriedade = ordem.propriedadeRoteadorPrincipal
+                )
+            } else {
+                _uiState.value.roteador.copy(sugestoes = emptyList(), isSearching = false, searchError = null)
+            }
+        )
+    }
+
+    fun alterarModeloRoteador(modelo: String, pesquisar: Boolean = true) {
+        if (_uiState.value.isCompleting || _uiState.value.requiresLogin) return
+        sugestoesJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            roteador = _uiState.value.roteador.copy(
+                modelo = modelo, sugestoes = emptyList(), isSearching = false, searchError = null
+            ),
+            completionError = null
+        )
+        val ordem = _uiState.value.ordem ?: return
+        if (!pesquisar || !_uiState.value.roteador.deveEnviar(ordem) ||
+            modelo.isBlank() || modelo.trim().length > 150 || ordem.status != OrdemServicoStatus.EM_ATENDIMENTO) return
+        sugestoesJob = viewModelScope.launch {
+            delay(350)
+            _uiState.value = _uiState.value.copy(roteador = _uiState.value.roteador.copy(isSearching = true))
+            try {
+                val sugestoes = repository.buscarSugestoesRoteador(modelo)
+                ensureActive()
+                _uiState.value = _uiState.value.copy(
+                    roteador = _uiState.value.roteador.copy(sugestoes = sugestoes, isSearching = false)
+                )
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                ensureActive()
+                if (exception is HttpException && exception.code() == 401) clearSession()
+                else _uiState.value = _uiState.value.copy(
+                    roteador = _uiState.value.roteador.copy(
+                        isSearching = false, searchError = "Sugestões indisponíveis. Você pode digitar o modelo."
+                    )
+                )
+            }
+        }
+    }
+
+    fun alterarPropriedadeRoteador(propriedade: PropriedadeRoteador) {
+        if (_uiState.value.isCompleting) return
+        _uiState.value = _uiState.value.copy(
+            roteador = _uiState.value.roteador.copy(propriedade = propriedade), completionError = null
+        )
+    }
+
+    fun atualizarDetalheAposConclusao() {
+        val state = _uiState.value
+        if (state.isRefreshingAfterCompletion || state.requiresLogin || state.ordem?.fimAtendimento == null) return
+        _uiState.value = state.copy(isRefreshingAfterCompletion = true, completionRefreshError = null)
+        viewModelScope.launch {
+            try {
+                val ordem = repository.buscarOrdemPorId(ordemId)
+                _uiState.value = _uiState.value.copy(
+                    ordem = ordem, isRefreshingAfterCompletion = false,
+                    roteador = RoteadorConclusaoUiState(
+                        modelo = ordem.modeloRoteadorPrincipal.orEmpty(), propriedade = ordem.propriedadeRoteadorPrincipal
+                    )
+                )
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                if (exception is HttpException && exception.code() == 401) clearSession()
+                else _uiState.value = _uiState.value.copy(
+                    isRefreshingAfterCompletion = false,
+                    completionRefreshError = "Atendimento concluído. Não foi possível atualizar os dados exibidos."
+                )
             }
         }
     }
@@ -491,6 +620,7 @@ class DetalheOrdemViewModel(
     }
 
     fun atualizarAjudante(ajudanteId: Long?) {
+        if (_uiState.value.isCompleting) return
         val ordemAtual = _uiState.value.ordem ?: return
 
         if (ordemAtual.status != OrdemServicoStatus.AGENDADA &&
@@ -587,7 +717,12 @@ class DetalheOrdemViewModel(
     }
 
     private suspend fun clearSession() {
-        tokenManager.clearToken()
+        if (sugestoesJob != kotlin.coroutines.coroutineContext[Job]) sugestoesJob?.cancel()
+        try {
+            tokenManager.clearToken()
+        } catch (_: IOException) {
+            // Solicitar novo login mesmo se a limpeza do armazenamento falhar.
+        }
 
         _uiState.value = _uiState.value.copy(
             isLoading = false,
@@ -599,6 +734,7 @@ class DetalheOrdemViewModel(
             isCompleting = false,
             isLoadingHelpers = false,
             isSavingHelper = false,
+            isRefreshingAfterCompletion = false,
             requiresLogin = true
         )
     }

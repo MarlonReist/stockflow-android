@@ -18,7 +18,10 @@ data class OrdemServicoDetalhe(
     val fimAtendimento: String?,
     val observacaoConclusao: String?,
     val produtosUtilizados: List<OrdemServicoItem>,
-    val anexos: List<OrdemServicoAnexo>
+    val anexos: List<OrdemServicoAnexo>,
+    val modeloRoteadorPrincipal: String? = null,
+    val propriedadeRoteadorPrincipal: PropriedadeRoteador? = null,
+    val dataAtualizacaoRoteador: String? = null
 )
 
 data class OrdemServicoItem(

@@ -24,6 +24,9 @@ data class DetalheOrdemUiState(
     val materialError: String? = null,
     val attachmentError: String? = null,
     val completionError: String? = null,
+    val roteador: RoteadorConclusaoUiState = RoteadorConclusaoUiState(),
+    val isRefreshingAfterCompletion: Boolean = false,
+    val completionRefreshError: String? = null,
     val helperError: String? = null,
     val wasUpdated: Boolean = false,
     val requiresLogin: Boolean = false

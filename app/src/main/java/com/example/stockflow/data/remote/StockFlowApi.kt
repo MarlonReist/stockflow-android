@@ -4,6 +4,7 @@ import com.example.stockflow.data.model.AdicionarMaterialRequest
 import com.example.stockflow.data.model.Almoxarifado
 import com.example.stockflow.data.model.EstoqueDisponivel
 import com.example.stockflow.data.model.ConclusaoAtendimentoRequest
+import com.example.stockflow.data.model.ModeloRoteadorSugestao
 import com.example.stockflow.data.model.AtualizarAjudanteRequest
 import com.example.stockflow.data.model.TecnicoAjudante
 import com.example.stockflow.data.model.LoginRequest
@@ -38,6 +39,12 @@ interface StockFlowApi {
 
     @GET("tecnico/minhas-os")
     suspend fun listarMinhasOrdens(): List<OrdemServicoResumo>
+
+    @GET("clientes/roteador-principal/sugestoes")
+    suspend fun buscarSugestoesRoteador(
+        @Query("q") consulta: String,
+        @Query("limite") limite: Int
+    ): List<ModeloRoteadorSugestao>
 
     @GET("tipos-os/ativos")
     suspend fun listarTiposOrdemServicoAtivos(): List<TipoOrdemServico>
